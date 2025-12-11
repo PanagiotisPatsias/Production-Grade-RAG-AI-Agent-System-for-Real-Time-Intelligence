@@ -18,26 +18,22 @@ jobs:
         credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
 
     - name: Configure Docker for Artifact Registry
-      run: |
-        gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+      run: gcloud auth configure-docker ${{ secrets.GCP_REGION }}-docker.pkg.dev
+        
 
     - name: Build image
-      run: |
-        docker build -t llm-rag-app .
+      run: docker build -t llm-rag-app .
 
     - name: Tag image
-      run: |
-        docker tag llm-rag-app \
+      run: docker tag llm-rag-app \
         ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/llm-rag-repo/llm-rag-app:${{ github.sha }}
 
     - name: Push image
-      run: |
-        docker push \
+      run: docker push \
         ${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/llm-rag-repo/llm-rag-app:${{ github.sha }}
 
     - name: Deploy to Cloud Run
-      run: |
-        gcloud run deploy llm-rag-service \
+      run: gcloud run deploy llm-rag-service \
           --image=${{ secrets.GCP_REGION }}-docker.pkg.dev/${{ secrets.GCP_PROJECT_ID }}/llm-rag-repo/llm-rag-app:${{ github.sha }} \
           --region=${{ secrets.GCP_REGION }} \
           --platform=managed \
