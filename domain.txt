@@ -1,0 +1,14 @@
+This document describes the operations of a fictional legal and compliance advisory firm.
+The firm specializes in regulatory compliance, contract drafting, risk assessment, and GDPR consulting.
+
+Its key services include:
+- drafting and reviewing commercial contracts,
+- providing legal opinions on cross-border transactions,
+- assessing corporate compliance with European data protection regulations (GDPR),
+- offering legal training for in-house counsel,
+- representing clients before regulatory authorities.
+
+The firm frequently handles matters involving data privacy breaches, compliance audits, and cross-border contractual disputes.
+Its clients range from small startups to large multinational corporations.
+The firm also produces internal guidelines on risk mitigation and legal best practices.
+
