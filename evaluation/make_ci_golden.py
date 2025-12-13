@@ -3,7 +3,7 @@ import json
 from pathlib import Path
 from typing import List, Dict, Any
 
-from .generate_rag_answers import generate_rag_answer
+from rag.generator import answer_question
 
 
 def load_json_list(path: Path) -> List[Dict[str, Any]]:
@@ -38,7 +38,7 @@ def main():
         ideal = ex.get("ideal_answer")
         ctx = ex.get("context", "")
 
-        rag = generate_rag_answer(question=q, top_k=args.top_k)
+        rag = answer_question(question=q, top_k=args.top_k)
 
         golden.append(
             {
