@@ -1,4 +1,4 @@
-# 📚 Trustworthy RAG System with Automated LLM Evaluation & Quality Gates
+# 📚 Production-Grade RAG & AI Agent System for Real-Time Intelligence
 
 ## Overview
 
