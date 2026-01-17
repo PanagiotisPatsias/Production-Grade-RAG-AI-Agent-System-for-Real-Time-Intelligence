@@ -110,7 +110,7 @@ def _render_markdown(request: str, payload: Dict[str, Any]) -> str:
     for q in open_q:
         md.append(f"- {q}")
     md.append("")
-    md.append("## Citations used")
+    md.append("## Chunks indexes")
     md.append(", ".join([f"[{c}]" for c in cites]) if cites else "_None_")
     md.append("")
     md.append(f"_Generated: {datetime.utcnow().isoformat()}Z_")

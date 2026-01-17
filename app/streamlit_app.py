@@ -15,7 +15,7 @@ load_dotenv()
 
 st.set_page_config(page_title="RAG Evaluation Demo", page_icon="📚", layout="wide")
 
-st.title("📚 RAG Demo (GDPR) — Retrieval + Citations")
+st.title("📚 RAG Demo (GDPR) — Retrieval + Chunk indexes")
 st.caption("UI-only app: all RAG logic lives under the `rag/` package.")
 
 tab_chat, tab_agent = st.tabs(["💬 RAG Chat", "🧠 Doc-to-Action Agent"])
