@@ -3,6 +3,8 @@ name: CI - LLM Quality Gates
 on:
   pull_request:
     branches: [ "main" ]
+  push:
+    branches: [ "main" ]
 
 jobs:
   eval:
