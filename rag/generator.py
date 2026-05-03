@@ -6,10 +6,11 @@ import time
 import uuid
 import re
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 from openai import OpenAI
 
+from rag.llm_config import DETERMINISTIC_SEED, GENERATOR_MODEL
 from rag.prompts import RAG_SYSTEM_PROMPT, RAG_USER_PROMPT_TEMPLATE
 from rag.retriever import Chunk, retrieve, format_context
 
@@ -50,18 +51,25 @@ def answer_question(
     question: str,
     *,
     top_k: int = 4,
-    model: str = "gpt-4.1-mini",
+    model: str = GENERATOR_MODEL,
     temperature: float = 0.2,
+    chunks_override: Optional[List[Chunk]] = None,
 ) -> RAGAnswer:
     """
     End-to-end: retrieve context -> ask LLM -> return answer with citations
     Also logs request-level metrics (latency, retrieval distances, refusal/citations).
+
+    If `chunks_override` is provided, retrieval is skipped and the supplied chunks
+    are used as context. Used by CI golden tests for frozen-retrieval regression.
     """
     request_id = str(uuid.uuid4())[:8]
     t0 = time.perf_counter()
 
-    # 1) Retrieve
-    chunks = retrieve(question, top_k=top_k)
+    # 1) Retrieve (or use frozen chunks for deterministic tests)
+    if chunks_override is not None:
+        chunks = chunks_override
+    else:
+        chunks = retrieve(question, top_k=top_k)
 
 
     context = format_context(chunks)
@@ -78,6 +86,7 @@ def answer_question(
             {"role": "user", "content": user_prompt},
         ],
         temperature=temperature,
+        seed=DETERMINISTIC_SEED,
     )
     text = resp.choices[0].message.content or ""
 

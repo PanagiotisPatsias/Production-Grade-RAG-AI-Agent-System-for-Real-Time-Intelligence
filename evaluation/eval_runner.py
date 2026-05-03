@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from evaluation.judge import judge_answer
+from rag.llm_config import JUDGE_MODEL
 from rag.retriever import format_context, Chunk
 from rag.generator import answer_question
 
@@ -32,7 +33,7 @@ def main():
     p.add_argument("--mode", choices=["ci", "nightly"], default="ci",
                    help="ci: frozen-context / nightly: end-to-end RAG")
     p.add_argument("--top-k", type=int, default=4, help="Top-k retrieval for nightly mode")
-    p.add_argument("--judge-model", default="gpt-4.1-mini")
+    p.add_argument("--judge-model", default=JUDGE_MODEL)
     args = p.parse_args()
 
     dataset_path = Path(args.dataset)
@@ -48,13 +49,36 @@ def main():
         ideal = ex.get("ideal_answer")
 
         if args.mode == "ci":
-            # frozen context is inside dataset
-            # answer is expected to be already provided (baseline) for determinism
+            # Frozen-retrieval regression: pass dataset context as a chunk and
+            # let the LLM actually generate the answer. This isolates the
+            # generator (the only variable here) from retrieval noise.
             context_text = ex.get("context", "")
-            answer = ex.get("golden_rag_answer") or ex.get("golden_answer") or ""
-            # format context with [1],[2] style even if it's a single block
-            context = f"[1] {context_text}" if context_text else "No relevant context found."
-            retrieved_debug = ex.get("retrieved_chunks", [])
+            frozen_chunks = (
+                [
+                    Chunk(
+                        id=f"{ex_id}-frozen",
+                        text=context_text,
+                        source="frozen",
+                        chunk_index=0,
+                        distance=0.0,
+                        metadata={"source": "frozen", "chunk_index": 0},
+                    )
+                ]
+                if context_text
+                else []
+            )
+            rag = answer_question(q, chunks_override=frozen_chunks)
+            answer = rag.answer
+            context = format_context(rag.chunks)
+            retrieved_debug = [
+                {
+                    "id": c.id,
+                    "source": c.source,
+                    "chunk_index": c.chunk_index,
+                    "frozen": True,
+                }
+                for c in rag.chunks
+            ]
         else:
             # nightly: run end-to-end RAG (retrieval+generation)
             rag = answer_question(q, top_k=args.top_k)
