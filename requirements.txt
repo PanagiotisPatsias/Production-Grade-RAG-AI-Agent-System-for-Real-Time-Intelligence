@@ -17,3 +17,9 @@ langchain>=0.2.0
 # LangChain community package for integrations
 langchain-community>=0.2.0
 
+# Sparse retrieval (BM25)
+rank-bm25>=0.2.2
+
+# Cross-encoder reranking
+sentence-transformers>=3.0.0
+

@@ -2,15 +2,20 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from threading import Lock
 from typing import Any, Dict, List, Optional
 
 from rag.store import VectorStoreConfig, get_collection
+from search.dense_source import DenseSource
+from search.meta_search import meta_search
+from search.reranker import Reranker
+from search.sparse_source import SparseSource
 
 
 @dataclass(frozen=True)
 class Chunk:
     """
-    A retrieved chunk from the vector store.
+    A retrieved chunk from the 2-stage hybrid retriever.
     """
     id: str
     text: str
@@ -20,44 +25,90 @@ class Chunk:
     metadata: Dict[str, Any]
 
 
+_LOCK = Lock()
+_DENSE: Optional[DenseSource] = None
+_SPARSE: Optional[SparseSource] = None
+_SPARSE_BUILT_FOR_COUNT: int = -1
+_RERANKER: Optional[Reranker] = None
+
+
+def _get_hybrid_sources(config: VectorStoreConfig):
+    """
+    Build dense + sparse sources once and reuse across calls.
+
+    BM25 is built in-memory from the Chroma collection at construction time;
+    rebuilt only when the collection size changes (e.g. after ingest).
+    """
+    global _DENSE, _SPARSE, _SPARSE_BUILT_FOR_COUNT
+
+    with _LOCK:
+        if _DENSE is None:
+            _DENSE = DenseSource(config=config)
+
+        current_count = get_collection(config, create_if_missing=True).count()
+        if _SPARSE is None or current_count != _SPARSE_BUILT_FOR_COUNT:
+            _SPARSE = SparseSource(config=config)
+            _SPARSE_BUILT_FOR_COUNT = current_count
+
+        return [_DENSE, _SPARSE]
+
+
+def _get_reranker() -> Reranker:
+    """
+    Cross-encoder is heavy to instantiate (downloads weights). Build once.
+    """
+    global _RERANKER
+    with _LOCK:
+        if _RERANKER is None:
+            _RERANKER = Reranker()
+        return _RERANKER
+
+
 def retrieve(
     query: str,
     *,
     top_k: int = 4,
+    candidate_pool: int = 20,
     config: VectorStoreConfig = VectorStoreConfig(),
 ) -> List[Chunk]:
     """
-    Retrieve top_k chunks for a query from Chroma.
+    Two-stage hybrid retrieval:
+      1. Dense (Chroma) + Sparse (BM25) fused via RRF -> candidate_pool results
+      2. Cross-encoder rerank -> top_k
 
-    Returns a list of Chunk objects with ids + metadata for debugging and citations.
+    `candidate_pool` should be >= top_k. Larger pools give the reranker more to
+    work with at the cost of latency.
     """
     if not query or not query.strip():
         return []
 
-    collection = get_collection(config, create_if_missing=True)
+    pool_size = max(candidate_pool, top_k)
 
-    results = collection.query(
-        query_texts=[query],
-        n_results=top_k,
-        include=["documents", "metadatas", "distances"],
+    sources = _get_hybrid_sources(config)
+    fused = meta_search(
+        query,
+        sources=sources,
+        per_source_top_k=max(20, pool_size * 2),
+        final_top_k=pool_size,
     )
 
-    docs = (results.get("documents") or [[]])[0]
-    metas = (results.get("metadatas") or [[]])[0]
-    dists = (results.get("distances") or [[]])[0]
-    ids = (results.get("ids") or [[]])[0]
+    if not fused:
+        return []
+
+    reranker = _get_reranker()
+    reranked = reranker.rerank(query, fused, top_k=top_k)
 
     chunks: List[Chunk] = []
-    for doc, meta, dist, _id in zip(docs, metas, dists, ids):
-        meta = meta or {}
+    for r in reranked:
+        meta = dict(r.metadata or {})
         chunks.append(
             Chunk(
-                id=str(_id),
-                text=str(doc),
+                id=str(r.id),
+                text=str(r.text),
                 source=meta.get("source"),
                 chunk_index=meta.get("chunk_index"),
-                distance=float(dist) if dist is not None else None,
-                metadata=dict(meta),
+                distance=float(r.score) if r.score is not None else None,
+                metadata=meta,
             )
         )
 
@@ -67,7 +118,6 @@ def retrieve(
 def format_context(chunks: List[Chunk]) -> str:
     """
     Formats retrieved chunks into a context block with stable numeric citations [1], [2], ...
-    (We don't use chunk_index for citations because it's document-dependent and can be sparse.)
     """
     if not chunks:
         return "No relevant context found."
