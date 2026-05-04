@@ -12,6 +12,7 @@ jobs:
 
     env:
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+      CHROMA_PERSIST_DIR: /tmp/chroma_db
 
     steps:
       - name: Checkout code
@@ -26,6 +27,13 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install --no-cache-dir -r requirements.txt
+
+      # Build the Chroma index from the GDPR fixture so nightly gates have
+      # real retrieval to evaluate against (without this, retrieve() returns
+      # zero chunks and the gates pass trivially).
+      - name: Ingest GDPR fixture into Chroma
+        run: |
+          python -m rag.ingest --pdf-dir data --reset
 
       # --- CI golden gate (fast) ---
       - name: Golden CI gate
