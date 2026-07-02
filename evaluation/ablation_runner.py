@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from evaluation.judge import judge_answer
 from rag.generator import answer_question
 from rag.ingest import ingest_pdf_dir
+from rag.llm_config import JUDGE_MODEL
 from rag.store import VectorStoreConfig
 
 
@@ -27,7 +28,7 @@ def main():
     p.add_argument("--chunk-sizes", default="800,1000,1500", help="Comma-separated chunk_size values")
     p.add_argument("--chunk-overlap", type=int, default=200)
     p.add_argument("--output", default="evaluation/artifacts/ablation_results.json")
-    p.add_argument("--judge-model", default="gpt-4.1-mini")
+    p.add_argument("--judge-model", default=JUDGE_MODEL)
     args = p.parse_args()
     load_dotenv()
     dataset = load_json_list(Path(args.dataset))

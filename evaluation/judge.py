@@ -8,6 +8,8 @@ from typing import Any, Dict, Optional
 
 from openai import OpenAI
 
+from rag.llm_config import DETERMINISTIC_SEED, JUDGE_MODEL
+
 
 JUDGE_SYSTEM_PROMPT = """You are an expert evaluator of answers produced by a Retrieval-Augmented Generation (RAG) system.
 
@@ -95,7 +97,7 @@ def judge_answer(
     answer: str,
     context: str,
     ideal_answer: Optional[str] = None,
-    model: str = "gpt-4.1-mini",
+    model: str = JUDGE_MODEL,
     temperature: float = 0.0,
     max_retries: int = 2,
 ) -> JudgeResult:
@@ -128,6 +130,7 @@ Retrieved context excerpts:
                     {"role": "user", "content": user_prompt},
                 ],
                 temperature=temperature,
+                seed=DETERMINISTIC_SEED,
             )
             raw = resp.choices[0].message.content or ""
             data = _extract_json(raw)

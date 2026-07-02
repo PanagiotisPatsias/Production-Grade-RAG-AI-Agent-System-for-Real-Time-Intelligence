@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List
 
 from evaluation.judge import judge_answer
+from rag.llm_config import JUDGE_MODEL
 
 
 def load_json_list(path: Path) -> List[Dict[str, Any]]:
@@ -21,7 +22,7 @@ def main():
     p = argparse.ArgumentParser(description="Judge reliability via repeated scoring.")
     p.add_argument("--dataset", required=True, help="Path to dataset JSON (CI frozen-context)")
     p.add_argument("--runs", type=int, default=5, help="How many repeated judge runs per example")
-    p.add_argument("--judge-model", default="gpt-4.1-mini")
+    p.add_argument("--judge-model", default=JUDGE_MODEL)
     p.add_argument("--output", default="evaluation/artifacts/reliability_summary.json")
     args = p.parse_args()
 

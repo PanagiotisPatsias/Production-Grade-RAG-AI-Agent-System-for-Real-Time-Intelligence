@@ -43,9 +43,11 @@ def _call_llm_json(prompt: str) -> str:
         raise RuntimeError("OPENAI_API_KEY not set")
 
     client = OpenAI(api_key=api_key)
+    from rag.llm_config import AGENT_MODEL, DETERMINISTIC_SEED
     resp = client.chat.completions.create(
-        model=os.getenv("AGENT_MODEL", "gpt-4.1-mini"),
+        model=AGENT_MODEL,
         temperature=0.2,
+        seed=DETERMINISTIC_SEED,
         messages=[
             {"role": "system", "content": AGENT_SYSTEM_PROMPT},
             {"role": "user", "content": prompt},

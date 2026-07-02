@@ -46,7 +46,9 @@ Ingestion Pipeline
 Vector Store (ChromaDB)
         │
         ▼
-Retriever (top-k semantic search)
+Hybrid Retrieval (2-stage)
+  ├── Stage 1: BM25 (sparse) + Dense (semantic), fused via RRF
+  └── Stage 2: Cross-encoder reranker (BAAI/bge-reranker-base)
         │
         ▼
 Generator (LLM with strict grounding & refusal rules)
@@ -68,9 +70,16 @@ rag/
 ├── store.py        # Vector store configuration & access
 ├── retriever.py    # Deterministic semantic retrieval
 ├── generator.py    # Grounded answer generation + citations
-├── prompts.py     # Centralized prompt templates
-├── schemas.py     # Structured outputs
+├── prompts.py      # Centralized prompt templates
+├── schemas.py      # Structured outputs
 
+search/
+├── base.py            # SearchSource interface + SearchResult dataclass
+├── dense_source.py    # Dense semantic retrieval (Chroma)
+├── sparse_source.py   # BM25 lexical retrieval (rank_bm25)
+├── fusion.py          # Reciprocal Rank Fusion (RRF)
+├── meta_search.py     # Parallel multi-source search + fusion
+├── reranker.py        # Cross-encoder reranker (2nd stage)
 ```
 This separation enables:
 
@@ -78,6 +87,32 @@ This separation enables:
 - future agent integration
 - evaluation reuse
 - scalable system evolution
+
+---
+
+## 🔎 Hybrid Retrieval (2-Stage)
+
+Retrieval combines complementary signals instead of relying on a single index:
+
+### Stage 1 — Candidate generation (parallel)
+- **Dense / semantic**: Chroma vector store, captures paraphrases and synonyms.
+- **Sparse / lexical**: BM25 (`rank_bm25`), captures rare terms, acronyms (GDPR, TCFD)
+  and exact word overlap that dense models often miss.
+- Both sources are queried **in parallel** and fused with
+  **Reciprocal Rank Fusion (RRF)**, which is score-agnostic and avoids the
+  calibration problem of mixing cosine distances with BM25 scores.
+
+### Stage 2 — Cross-encoder reranking
+- Top-N fused candidates are reranked with a cross-encoder
+  (`BAAI/bge-reranker-base`), which jointly scores `(query, document)` pairs.
+- Bi-encoders are fast but lose query/document interaction signal; the cross-encoder
+  recovers it on a bounded candidate set, giving better top-K quality without
+  paying its cost over the whole corpus.
+- Reranker weights are **pre-baked into the Docker image** so cold starts on
+  Cloud Run do not trigger a model download.
+
+This pattern (retrieve cheap → rerank expensive) is the standard high-quality
+recipe for production RAG.
 
 ---
 
@@ -238,7 +273,9 @@ This project showcases:
 
 - Python
 - OpenAI APIs
-- ChromaDB
+- ChromaDB (dense vector store)
+- `rank_bm25` (BM25 lexical retrieval)
+- `sentence-transformers` cross-encoder (`BAAI/bge-reranker-base`)
 - Streamlit (UI layer only)
 - Docker
 - GitHub Actions
